@@ -1,5 +1,8 @@
+bin/
+include/
+lib/
+lib64/
+static/
 __pycache__/
-.vscode/
-.env
-.venv/
-*.pyc
+lib64/
+share/
