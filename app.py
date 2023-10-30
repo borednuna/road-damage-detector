@@ -93,8 +93,17 @@ def generate_frames():
                     continue
 
                 frame = buffer.tobytes()
+                app.frames = frame
+
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+def generate_post_process_frames():
+    while True:
+        frame_bytes = getattr(app, 'frames', None)
+        if frame_bytes is not None:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
 @app.route('/')
 def index():
@@ -104,6 +113,14 @@ def index():
 def video_feed():
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/post_process')
+def post_process():
+    return render_template('post_process.html')
+
+@app.route('/post_process_feed')
+def post_process_feed():
+    return Response(generate_post_process_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
     app.run(debug=True)
