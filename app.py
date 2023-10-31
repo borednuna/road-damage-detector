@@ -1,5 +1,6 @@
 from flask import Flask, render_template, Response
 import cv2
+import datetime
 import numpy as np
 import torch
 import torchvision
@@ -38,6 +39,15 @@ model.eval()
 # Directory where you want to save processed images
 OUTPUT_DIR = 'processed_images'
 detection_threshold = 0.5
+
+record_dir = "./static/record"
+recorded_buffer = []
+
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+#filename with date and time
+filename = f'{record_dir}/{timestamp}.mp4'
 
 def generate_frames():
     while True:
@@ -91,19 +101,22 @@ def generate_frames():
                 ret, buffer = cv2.imencode('.jpg', frame)
                 if not ret:
                     continue
-
+                
+                recorded_buffer.append(buffer)
                 frame = buffer.tobytes()
-                app.frames = frame
+                
+                yield(b'--frame\r\n'b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-def generate_post_process_frames():
+def generate_post_process_frame():
     while True:
-        frame_bytes = getattr(app, 'frames', None)
-        if frame_bytes is not None:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        for buffer in recorded_buffer:
+            frame = buffer.tobytes()
+            yield(b'--frame\r\n'b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+@app.route('/record_feed')
+def record_feed():
+    return Response(generate_post_process_frame(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/')
 def index():
@@ -117,10 +130,6 @@ def video_feed():
 @app.route('/post_process')
 def post_process():
     return render_template('post_process.html')
-
-@app.route('/post_process_feed')
-def post_process_feed():
-    return Response(generate_post_process_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
     app.run(debug=True)

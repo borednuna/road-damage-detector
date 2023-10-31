@@ -4,8 +4,30 @@
     <title>Real-time Road Damage Detection</title>
   </head>
   <body>
-    <a href="">Post-Process</a>
+    <a href="{{ url_for('post_process') }}">Post-Process</a>
     <h1>Real-time Road Damage Detection</h1>
     <img src="{{ url_for('video_feed') }}" />
+
+    <button id="Start" onClick="startDetect()">Start Detection</button>
+    <button id="Stop" onClick="stopDetect()">Stop Detection</button>
+
+    <script>
+      var start = document.getElementById("Start");
+      var stop = document.getElementById("Stop");
+      var img = document.getElementById("img");
+
+      function startDetect() {
+        start.disabled = true;
+        stop.disabled = false;
+        img.src = "{{ url_for('video_feed') }}";
+      }
+
+      function stopDetect() {
+        start.disabled = false;
+        stop.disabled = true;
+        img.src = "";
+      }
+    </script>
+    
   </body>
 </html>
