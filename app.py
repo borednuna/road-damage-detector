@@ -9,7 +9,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 app = Flask(__name__)
 
 # Define your classes
-CLASSES = ['background', 'crack', 'damage', 'pothole', 'pothole_water', 'pothole_water_m']
+CLASSES = ['pothole', 'longitudinal cracking', 'lateral cracking', 'alligator cracking']
 # Define the desired width and height for the resized frames
 desired_width = 320
 # Define a variable to keep track of the frame count
@@ -32,7 +32,7 @@ camera = cv2.VideoCapture(0)
 
 # Create the model and load weights here
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = create_model(num_classes=6).to(device)
+model = create_model(num_classes=4).to(device)
 model.load_state_dict(torch.load('./static/model/model20.pth', map_location=device))
 model.eval()
 
