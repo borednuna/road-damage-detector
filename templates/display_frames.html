@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detected Frames</title>
+</head>
+<body>
+    <h1>Detected Frames</h1>
+    {% if frame_urls %}
+        {% for frame_url in frame_urls %}
+        <img src="{{ frame_url }}" alt="Detected Frame">
+        {% endfor %}
+    {% else %}
+        <p>No frames were detected.</p>
+    {% endif %}
+</body>
+</html>

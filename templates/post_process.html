@@ -1,13 +1,44 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Post Process</title>
+  <title>ICHIRO | Road Damage Detector</title>
   <meta charset="utf-8">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <script type="text/javascript">
+    var socket = io.connect('http://127.0.0.1:5000');
+  </script>
 </head>
 <body>
   <h1>Post Process</h1>
-  <p>Post Processed</p>
-  <p><a href="/">Back</a></p>
-  <img src="{{ url_for('record_feed') }}" alt="">
+  <form method="POST" action="/processed" enctype="multipart/form-data" id="upload-form">
+    <p>Upload a video file to get started</p>
+    <input type="file" name="video" id="video-input">
+    <button type="submit" class="btn btn-primary" id="upload-button">Upload</button>
+  </form>
+
+  <div id="progress-container">
+    <div class="progress">
+      <div class="progress-bar" role="progressbar" style="width: 0%;" id="progress-bar"></div>
+    </div>
+    <div id="progress-status">Processing: 0%</div>
+  </div>
+
+  <script>
+    socket.on('connect', function() {
+      console.log('Connected to server');
+    });
+
+    socket.on('progress_update', function(data) {
+      console.log('Progress update received')
+      console.log(data);
+
+      // Update the progress bar
+      var formattedProgress = data.toFixed(2); // Convert to a percentage with two decimal places
+      document.getElementById('progress-bar').style.width = formattedProgress + '%';
+
+      // Update the progress status
+      document.getElementById('progress-status').innerText = 'Processing: ' + formattedProgress + '%';
+    });
+  </script>
 </body>
 </html>
