@@ -4,5 +4,6 @@ lib/
 lib64/
 static/
 __pycache__/
-lib64/
 share/
+uploads/
+*.log

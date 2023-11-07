@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detected Frames</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        padding: 0;
+      }
+      .header {
+        text-align: center;
+        color: #fff;
+        padding: 20px;
+      }
+      .header img {
+        margin-left: 1rem;
+        margin-right: 1rem;
+        height: 4rem;
+      }
+      .header .img-container {
+        display: flex;
+        justify-content: center;
+      }
+      .img-container {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: auto;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.8rem;
+        color: #003975;
+        padding: 1rem;
+      }
+      img {
+        margin: 1rem;
+        max-width: 30rem;
+        height: auto;
+      }
+      p {
+        text-align: center;
+        color: #666;
+      }
+    </style>
+</head>
+<body>
+  <div class="header">
+    <div class="img-container">
+      <img src="../static/assets/ichiro.png" alt="Ichiro Logo">
+      <img src="../static/assets/its.png" alt="ITS Logo">
+    </div>
+    <h1>ICHIRO | Road Damage Detector</h1>
+  </div>
+    {% if frame_urls %}
+        <div class="img-container">
+        {% for frame_url in frame_urls %}
+          <img src="{{ frame_url }}" alt="Detected Frame">
+          {% endfor %}
+        </div>
+    {% else %}
+        <p>No frames were detected.</p>
+    {% endif %}
+</body>
+</html>

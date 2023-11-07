@@ -1,109 +1,156 @@
-from flask import Flask, render_template, Response
+import datetime
+import os
+from flask import Flask, render_template, request, redirect, Response, url_for
 import cv2
 import numpy as np
 import torch
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from flask_socketio import SocketIO
+import threading
 
 app = Flask(__name__)
+socketio = SocketIO(app)
 
-# Define your classes
-CLASSES = ['background', 'crack', 'damage', 'pothole', 'pothole_water', 'pothole_water_m']
-# Define the desired width and height for the resized frames
-desired_width = 320
-# Define a variable to keep track of the frame count
-frame_count = 0
-# Define the frequency at which to run object detection (e.g., every 5 frames)
-detection_frequency = 50
+frame_urls = []
 
-# Function to create the model
+processing_done = threading.Event()  # Event to signal when video processing is done
+
+@socketio.on('progress_update')
+def handle_progress(progress):
+    socketio.emit('progress_update', {'progress': progress})
+
+CLASSES = ['background', 'lateral cracking', 'alligator cracking', 'longitudinal cracking', 'pothole', 'alligator cracking']
+desired_width = 768
+
 def create_model(num_classes):
-    # Load Faster RCNN pre-trained model
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-    # Get the number of input features
     in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # Define a new head for the detector with the required number of classes
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
     return model
 
-# Video capture from your camera (adjust the index as needed)
-camera = cv2.VideoCapture(0)
+def generate_frames(video_path):
+    global frame_urls  # Mark frame_urls as a global variable
+    frame_urls = []  # Clear the frame_urls list for a new video
+    vid = cv2.VideoCapture(video_path)
+    detection_threshold = 0.4
+    total_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
-# Create the model and load weights here
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = create_model(num_classes=6).to(device)
-model.load_state_dict(torch.load('./static/model/model20.pth', map_location=device))
-model.eval()
+    # clear folder /static/frames/ content
+    for filename in os.listdir('./static/frames/'):
+        os.remove('./static/frames/' + filename)
 
-# Directory where you want to save processed images
-OUTPUT_DIR = 'processed_images'
-detection_threshold = 0.5
+    for frame_count in range(total_frames):
+        if frame_count % 10 == 0:
+            progress = (frame_count / total_frames) * 100
+            socketio.emit('progress_update', progress)
+            vid.set(cv2.CAP_PROP_POS_FRAMES, frame_count)  # Set the video capture to the specified frame
+            success, frame = vid.read()
+            print(f'Frame {frame_count} of {total_frames}')
 
-def generate_frames():
-    while True:
-        success, frame = camera.read()
-        if not success:
-            break
-        else:
+            if not success:
+                break
+
             height, width, _ = frame.shape
             new_height = int(desired_width * height / width)
-            # Resize the frame to the desired resolution
             frame = cv2.resize(frame, (desired_width, new_height))
-            # BGR to RGB
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).astype(np.float32)
-            # Make the pixel range between 0 and 1
             image /= 255.0
-            # Bring color channels to the front
             image = np.transpose(image, (2, 0, 1)).astype(float)
-            # Convert to tensor
             image = torch.tensor(image, dtype=torch.float)
-            # Add batch dimension
             image = torch.unsqueeze(image, 0)
             image = image.to(device)
+
+            detected_frames = None
+
             with torch.no_grad():
                 outputs = model(image)
 
-            # Load all detections to CPU for further operations
             outputs = [{k: v.to('cpu') for k, v in t.items()} for t in outputs]
 
-            # Carry further only if there are detected boxes
             if len(outputs[0]['boxes']) != 0:
                 boxes = outputs[0]['boxes'].data.numpy()
                 scores = outputs[0]['scores'].data.numpy()
-                # Filter out boxes according to `detection_threshold`
                 boxes = boxes[scores >= detection_threshold].astype(np.int32)
                 draw_boxes = boxes.copy()
-                # Get all the predicted class names
                 pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
 
-                # Draw the bounding boxes and write the class name on top of it
                 for j, box in enumerate(draw_boxes):
+                    confidence = scores[j]  # Confidence score for the detected object
+                    label_text = f'{pred_classes[j]}: {confidence:.2f}'  # Combine label and confidence
                     cv2.rectangle(frame,
                                 (int(box[0]), int(box[1])),
                                 (int(box[2]), int(box[3])),
-                                (0, 0, 255), 2)  # Color (0, 0, 255) represents red
-                    cv2.putText(frame, pred_classes[j],
+                                (0, 0, 255), 2)
+                    cv2.putText(frame, label_text,
                                 (int(box[0]), int(box[1]-5)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0),
                                 2, lineType=cv2.LINE_AA)
-                    
-                # Convert the frame to JPEG
-                ret, buffer = cv2.imencode('.jpg', frame)
-                if not ret:
-                    continue
+                    detected_frames = frame.copy()
 
-                frame = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            if frame is not None and detected_frames is not None and frame_count % 20 == 0:
+                frame_filename = f'frame_{frame_count}.jpg'
+                frame_path = f'./static/frames/{frame_filename}'
+                cv2.imwrite(frame_path, detected_frames)
+                frame_url = f'/static/frames/{frame_filename}'
+                frame_urls.append(frame_url)
+
+    vid.release()
+    yield 'data:100\n\n'  # Indicate 100% progress at the end
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = create_model(num_classes=6).to(device)
+model.load_state_dict(torch.load('./static/model/model18.pth', map_location=device))
+model.eval()
+
+def process_video(video_path):
+    global frame_urls
+    for frame_url in generate_frames(video_path):
+        pass  # Yield the frames, but we don't need them here
+    processing_done.set()  # Signal that processing is done
 
 @app.route('/')
-def index():
-    return render_template('camera.html')
+def post_process():
+    return render_template('post_process.html')
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(generate_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+@app.route('/processed', methods=['POST'])
+def upload_file():
+    if 'video' not in request.files:
+        return redirect(request.url)
+
+    video_file = request.files['video']
+
+    if video_file.filename == '':
+        return redirect(request.url)
+
+    if not video_file.filename.endswith('.mp4'):
+        return 'File is not a video'
+
+    if int(request.content_length) > 100000000:
+        return 'File is too large'
+
+    video_path = './uploads/' + str(datetime.datetime.now().timestamp()) + '.mp4'
+    video_file.save(video_path)
+
+    # If the folder uploads contains more than 2 files, delete the oldest one
+    files = sorted(os.listdir('./uploads'))
+    if len(files) > 2:
+        os.remove('./uploads/' + files[0])
+
+    # Start video processing in a background thread
+    processing_thread = threading.Thread(target=process_video, args=(video_path,))
+    processing_thread.start()
+
+    # Wait for video processing to complete
+    processing_done.wait()
+
+    return redirect(url_for('display_frames'))
+
+@app.route('/display_frames')
+def display_frames():
+    global frame_urls
+
+    return render_template('display_frames.html', frame_urls=frame_urls)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)
