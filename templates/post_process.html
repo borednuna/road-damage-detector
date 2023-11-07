@@ -14,19 +14,31 @@
       margin: 0;
       padding: 0;
     }
-    h1 {
+    .header {
       text-align: center;
-      color: #333;
+      color: #fff;
       padding: 20px;
+    }
+    .header img {
+      margin-right: 1rem;
+      margin-left: 1rem;
+      height: 4rem;
+    }
+    h1 {
+      margin: 0;
+        font-size: 1.8rem;
+        color: #003975;
+        padding: 1rem;
     }
     form {
       background-color: #fff;
       max-width: 400px;
-      margin: 0 auto;
+      margin: 20px auto;
       padding: 20px;
       border-radius: 5px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
     }
+
     p {
       text-align: center;
       color: #666;
@@ -47,10 +59,25 @@
     button:hover {
       background-color: #0056b3;
     }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    #progress-status {
+      text-align: center;
+      margin-top: 10px;
+      color: #007bff;
+    }
   </style>
 </head>
 <body>
-  <h1>Post Process</h1>
+  <div class="header">
+    <div class="img-container">
+      <img src="../static/assets/ichiro.png" alt="Ichiro Logo">
+      <img src="../static/assets/its.png" alt="ITS Logo">
+    </div>
+    <h1>ICHIRO | Road Damage Detector</h1>
+  </div>
   <form method="POST" action="/processed" enctype="multipart/form-data" id="upload-form">
     <p>Upload a video file to get started</p>
     <input type="file" name="video" id="video-input">
@@ -69,6 +96,25 @@
 
       // Update the progress status
       document.getElementById('progress-status').innerText = 'Processing: ' + data + '%';
+    });
+
+    // JavaScript to disable the button after form submission
+    var uploadButton = document.getElementById('upload-button');
+    var form = document.getElementById('upload-form');
+    var videoInput = document.getElementById('video-input');
+
+    form.addEventListener('submit', function(event) {
+      if (videoInput.files.length === 0 || !videoInput.files[0].name.endsWith('.mp4')) {
+        event.preventDefault(); // Prevent form submission
+        alert('Please select an MP4 file.');
+        return;
+      }
+
+      // Disable the button
+      uploadButton.disabled = true;
+
+      // Change the button text to indicate that it's disabled
+      uploadButton.innerText = 'Processing, do not reload page ...';
     });
   </script>
 </body>

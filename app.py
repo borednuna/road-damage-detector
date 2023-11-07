@@ -20,8 +20,8 @@ processing_done = threading.Event()  # Event to signal when video processing is 
 def handle_progress(progress):
     socketio.emit('progress_update', {'progress': progress})
 
-CLASSES = ['pothole', 'longitudinal cracking', 'lateral cracking', 'alligator cracking']
-desired_width = 320
+CLASSES = ['background', 'lateral cracking', 'alligator cracking', 'longitudinal cracking', 'pothole', 'alligator cracking']
+desired_width = 768
 
 def create_model(num_classes):
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
@@ -33,70 +33,74 @@ def generate_frames(video_path):
     global frame_urls  # Mark frame_urls as a global variable
     frame_urls = []  # Clear the frame_urls list for a new video
     vid = cv2.VideoCapture(video_path)
-    detection_threshold = 0.1
+    detection_threshold = 0.4
     total_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
+    # clear folder /static/frames/ content
+    for filename in os.listdir('./static/frames/'):
+        os.remove('./static/frames/' + filename)
+
     for frame_count in range(total_frames):
-        if frame_count % 10 != 0:
-            continue
+        if frame_count % 10 == 0:
+            progress = (frame_count / total_frames) * 100
+            socketio.emit('progress_update', progress)
+            vid.set(cv2.CAP_PROP_POS_FRAMES, frame_count)  # Set the video capture to the specified frame
+            success, frame = vid.read()
+            print(f'Frame {frame_count} of {total_frames}')
 
-        progress = (frame_count / total_frames) * 100
-        socketio.emit('progress_update', progress)
-        success, frame = vid.read()
-        print(f'Frame {frame_count} of {total_frames}')
+            if not success:
+                break
 
-        if not success:
-            break
+            height, width, _ = frame.shape
+            new_height = int(desired_width * height / width)
+            frame = cv2.resize(frame, (desired_width, new_height))
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).astype(np.float32)
+            image /= 255.0
+            image = np.transpose(image, (2, 0, 1)).astype(float)
+            image = torch.tensor(image, dtype=torch.float)
+            image = torch.unsqueeze(image, 0)
+            image = image.to(device)
 
-        height, width, _ = frame.shape
-        new_height = int(desired_width * height / width)
-        frame = cv2.resize(frame, (desired_width, new_height))
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).astype(np.float32)
-        image /= 255.0
-        image = np.transpose(image, (2, 0, 1)).astype(float)
-        image = torch.tensor(image, dtype=torch.float)
-        image = torch.unsqueeze(image, 0)
-        image = image.to(device)
+            detected_frames = None
 
-        detected_frames = []
+            with torch.no_grad():
+                outputs = model(image)
 
-        with torch.no_grad():
-            outputs = model(image)
+            outputs = [{k: v.to('cpu') for k, v in t.items()} for t in outputs]
 
-        outputs = [{k: v.to('cpu') for k, v in t.items()} for t in outputs]
+            if len(outputs[0]['boxes']) != 0:
+                boxes = outputs[0]['boxes'].data.numpy()
+                scores = outputs[0]['scores'].data.numpy()
+                boxes = boxes[scores >= detection_threshold].astype(np.int32)
+                draw_boxes = boxes.copy()
+                pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
 
-        if len(outputs[0]['boxes']) != 0:
-            boxes = outputs[0]['boxes'].data.numpy()
-            scores = outputs[0]['scores'].data.numpy()
-            boxes = boxes[scores >= detection_threshold].astype(np.int32)
-            draw_boxes = boxes.copy()
-            pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
+                for j, box in enumerate(draw_boxes):
+                    confidence = scores[j]  # Confidence score for the detected object
+                    label_text = f'{pred_classes[j]}: {confidence:.2f}'  # Combine label and confidence
+                    cv2.rectangle(frame,
+                                (int(box[0]), int(box[1])),
+                                (int(box[2]), int(box[3])),
+                                (0, 0, 255), 2)
+                    cv2.putText(frame, label_text,
+                                (int(box[0]), int(box[1]-5)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0),
+                                2, lineType=cv2.LINE_AA)
+                    detected_frames = frame.copy()
 
-            for j, box in enumerate(draw_boxes):
-                cv2.rectangle(frame,
-                            (int(box[0]), int(box[1])),
-                            (int(box[2]), int(box[3])),
-                            (0, 0, 255), 2)
-                cv2.putText(frame, pred_classes[j],
-                            (int(box[0]), int(box[1]-5)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0),
-                            2, lineType=cv2.LINE_AA)
-                detected_frames.append(frame)
-
-        if frame is not None and frame.any() and detected_frames:
-            combined_frame = np.hstack(detected_frames)
-            frame_filename = f'frame_{frame_count}.jpg'
-            frame_path = f'./static/frames/{frame_filename}'
-            cv2.imwrite(frame_path, combined_frame)
-            frame_url = f'/static/frames/{frame_filename}'
-            frame_urls.append(frame_url)
+            if frame is not None and detected_frames is not None and frame_count % 20 == 0:
+                frame_filename = f'frame_{frame_count}.jpg'
+                frame_path = f'./static/frames/{frame_filename}'
+                cv2.imwrite(frame_path, detected_frames)
+                frame_url = f'/static/frames/{frame_filename}'
+                frame_urls.append(frame_url)
 
     vid.release()
     yield 'data:100\n\n'  # Indicate 100% progress at the end
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = create_model(num_classes=4).to(device)
-model.load_state_dict(torch.load('./static/model/model20.pth', map_location=device))
+model = create_model(num_classes=6).to(device)
+model.load_state_dict(torch.load('./static/model/model18.pth', map_location=device))
 model.eval()
 
 def process_video(video_path):
