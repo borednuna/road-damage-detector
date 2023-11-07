@@ -7,6 +7,47 @@
   <script type="text/javascript">
     var socket = io.connect('http://127.0.0.1:5000');
   </script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      padding: 20px;
+    }
+    form {
+      background-color: #fff;
+      max-width: 400px;
+      margin: 0 auto;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    }
+    p {
+      text-align: center;
+      color: #666;
+    }
+    input[type="file"] {
+      width: 100%;
+      margin: 10px 0;
+    }
+    button {
+      width: 100%;
+      background-color: #007bff;
+      color: #fff;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+  </style>
 </head>
 <body>
   <h1>Post Process</h1>
@@ -14,14 +55,8 @@
     <p>Upload a video file to get started</p>
     <input type="file" name="video" id="video-input">
     <button type="submit" class="btn btn-primary" id="upload-button">Upload</button>
-  </form>
-
-  <div id="progress-container">
-    <div class="progress">
-      <div class="progress-bar" role="progressbar" style="width: 0%;" id="progress-bar"></div>
-    </div>
     <div id="progress-status">Processing: 0%</div>
-  </div>
+  </form>
 
   <script>
     socket.on('connect', function() {
@@ -32,12 +67,8 @@
       console.log('Progress update received')
       console.log(data);
 
-      // Update the progress bar
-      var formattedProgress = data.toFixed(2); // Convert to a percentage with two decimal places
-      document.getElementById('progress-bar').style.width = formattedProgress + '%';
-
       // Update the progress status
-      document.getElementById('progress-status').innerText = 'Processing: ' + formattedProgress + '%';
+      document.getElementById('progress-status').innerText = 'Processing: ' + data + '%';
     });
   </script>
 </body>

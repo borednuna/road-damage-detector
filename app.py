@@ -1,14 +1,11 @@
+import datetime
+import os
 from flask import Flask, render_template, request, redirect, Response, url_for
 import cv2
-import numpy
 import numpy as np
 import torch
-import torch
-import torchvision
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from flask_socketio import SocketIO
 from flask_socketio import SocketIO
 import threading
 
@@ -36,7 +33,7 @@ def generate_frames(video_path):
     global frame_urls  # Mark frame_urls as a global variable
     frame_urls = []  # Clear the frame_urls list for a new video
     vid = cv2.VideoCapture(video_path)
-    detection_threshold = 0.5
+    detection_threshold = 0.1
     total_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
     for frame_count in range(total_frames):
@@ -128,8 +125,13 @@ def upload_file():
     if int(request.content_length) > 100000000:
         return 'File is too large'
 
-    video_path = './uploads/detect_input.mp4'
+    video_path = './uploads/' + str(datetime.datetime.now().timestamp()) + '.mp4'
     video_file.save(video_path)
+
+    # If the folder uploads contains more than 2 files, delete the oldest one
+    files = sorted(os.listdir('./uploads'))
+    if len(files) > 2:
+        os.remove('./uploads/' + files[0])
 
     # Start video processing in a background thread
     processing_thread = threading.Thread(target=process_video, args=(video_path,))
