@@ -2,8 +2,9 @@
 include/
 lib/
 lib64/
-static/
 __pycache__/
 share/
-uploads/
+uploads/*.mp4
+static/frames/
+static/model/
 *.log

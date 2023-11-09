@@ -41,7 +41,7 @@ def generate_frames(video_path):
         os.remove('./static/frames/' + filename)
 
     for frame_count in range(total_frames):
-        if frame_count % 10 == 0:
+        if frame_count % 25 == 0:
             progress = (frame_count / total_frames) * 100
             socketio.emit('progress_update', progress)
             vid.set(cv2.CAP_PROP_POS_FRAMES, frame_count)  # Set the video capture to the specified frame
@@ -75,7 +75,11 @@ def generate_frames(video_path):
                 draw_boxes = boxes.copy()
                 pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
 
+
                 for j, box in enumerate(draw_boxes):
+                    # skip if top left corner of box is higher than 1/2 of frame height
+                    if box[1] < frame.shape[0] / 2:
+                        continue
                     confidence = scores[j]  # Confidence score for the detected object
                     label_text = f'{pred_classes[j]}: {confidence:.2f}'  # Combine label and confidence
                     cv2.rectangle(frame,
@@ -126,8 +130,8 @@ def upload_file():
     if not video_file.filename.endswith('.mp4'):
         return 'File is not a video'
 
-    if int(request.content_length) > 100000000:
-        return 'File is too large'
+    # if int(request.content_length) > 100000000:
+    #     return 'File is too large'
 
     video_path = './uploads/' + str(datetime.datetime.now().timestamp()) + '.mp4'
     video_file.save(video_path)
